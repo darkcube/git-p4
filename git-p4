@@ -1642,7 +1642,7 @@ class P4Sync(Command):
         if len(branch) <= 0:
             return branch
 
-        return self.refPrefix + self.projectName + branch
+        return self.refPrefix + self.projectName + branch.replace(" ","_")
 
     def gitCommitByP4Change(self, ref, change):
         if self.verbose:
