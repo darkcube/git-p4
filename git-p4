@@ -1257,12 +1257,10 @@ class P4Sync(Command):
             f["type"] = commit["type%s" % fnum]
             fnum = fnum + 1
 
-            relPath = self.stripRepoPath(path, self.depotPaths)
-
             for branch in self.knownBranches.keys():
 
                 # add a trailing slash so that a commit into qt/4.2foo doesn't end up in qt/4.2
-                if relPath.startswith(branch + "/"):
+                if path.startswith(branch + "/"):
                     if branch not in branches:
                         branches[branch] = []
                     branches[branch].append(f)
@@ -1588,8 +1586,8 @@ class P4Sync(Command):
                 destination = paths[1]
                 ## HACK
                 if source.startswith(self.depotPaths[0]) and destination.startswith(self.depotPaths[0]):
-                    source = source[len(self.depotPaths[0]):-4]
-                    destination = destination[len(self.depotPaths[0]):-4]
+                    source = source[0:-4]
+                    destination = destination[0:-4]
 
                     if destination in self.knownBranches:
                         if not self.silent:
@@ -1641,8 +1639,8 @@ class P4Sync(Command):
 
         if len(branch) <= 0:
             return branch
-
-        return self.refPrefix + self.projectName + branch.replace(" ","_")
+        
+        return self.refPrefix + self.projectName + branch[len(self.depotPaths[0]):len(branch)].replace(" ","_")
 
     def gitCommitByP4Change(self, ref, change):
         if self.verbose:
@@ -1720,7 +1718,6 @@ class P4Sync(Command):
                     branches = self.splitFilesIntoBranches(description)
                     for branch in branches.keys():
                         ## HACK  --hwn
-                        branchPrefix = self.depotPaths[0] + branch + "/"
 
                         parent = ""
 
@@ -1750,17 +1747,17 @@ class P4Sync(Command):
                                 if self.verbose:
                                     print "parent determined through known branches: %s" % parent
 
-                        branch = self.gitRefForBranch(branch)
-                        parent = self.gitRefForBranch(parent)
+                        gitBranch = self.gitRefForBranch(branch)
+                        gitParent = self.gitRefForBranch(parent)
 
                         if self.verbose:
-                            print "looking for initial parent for %s; current parent is %s" % (branch, parent)
+                            print "looking for initial parent for %s; current parent is %s" % (gitBranch, gitParent)
 
-                        if len(parent) == 0 and branch in self.initialParents:
-                            parent = self.initialParents[branch]
-                            del self.initialParents[branch]
+                        if len(gitParent) == 0 and gitBranch in self.initialParents:
+                            gitParent = self.initialParents[gitBranch]
+                            del self.initialParents[gitBranch]
 
-                        self.commit(description, filesForCommit, branch, [branchPrefix], parent)
+                        self.commit(description, filesForCommit, gitBranch, [branch + "/"], gitParent)
                 else:
                     files = self.extractFilesFromCommit(description)
                     if (cnt == 1 and restartImport):
