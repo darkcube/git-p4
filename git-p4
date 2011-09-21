@@ -1561,14 +1561,15 @@ class P4Sync(Command):
         if self.verbose:
             print "Label changes: %s" % self.labels.keys()
 
-    def guessProjectName(self):
+    def guessProjectName(self, branch = None):
         for p in self.depotPaths:
-            if p.endswith("/"):
-                p = p[:-1]
-            p = p[p.strip().rfind("/") + 1:]
-            if not p.endswith("/"):
-               p += "/"
-            return p
+            if branch is None or branch.startswith(p):
+                if p.endswith("/"):
+                    p = p[:-1]
+                p = p[p.strip().rfind("/") + 1:]
+                if not p.endswith("/"):
+                   p += "/"
+                return p
 
     def getBranchMapping(self):
         lostAndFoundBranches = set()
@@ -1585,7 +1586,16 @@ class P4Sync(Command):
                 source = paths[0]
                 destination = paths[1]
                 ## HACK
-                if source.startswith(self.depotPaths[0]) and destination.startswith(self.depotPaths[0]):
+                
+                # make sure the source and destination are in the depotPaths
+                pathsMatched = False
+                for depotPath in self.depotPaths:
+                    if source.startswith(depotPath):
+                        for depotPath2 in self.depotPaths:
+                            if destination.startswith(depotPath2):
+                                pathsMatched = True
+                
+                if pathsMatched:
                     source = source[0:-4]
                     destination = destination[0:-4]
 
@@ -1640,7 +1650,11 @@ class P4Sync(Command):
         if len(branch) <= 0:
             return branch
         
-        return self.refPrefix + self.projectName + branch[len(self.depotPaths[0]):len(branch)].replace(" ","_")
+        for depotPath in self.depotPaths:
+            if branch.startswith(depotPath):
+                return self.refPrefix + self.guessProjectName(branch) + branch[len(depotPath):len(branch)].replace(" ","_")
+        
+        return self.refPrefix + self.guessProjectName(branch) + branch[len(self.depotPaths[0]):len(branch)].replace(" ","_")
 
     def gitCommitByP4Change(self, ref, change):
         if self.verbose:
@@ -1679,7 +1693,7 @@ class P4Sync(Command):
         # command so that we can try to find the branch parent in the git history
         self.gitStream.write("checkpoint\n\n");
         self.gitStream.flush();
-        branchPrefix = self.depotPaths[0] + branch + "/"
+        branchPrefix = branch + "/"
         commitRange = "@1,%s" % maxChange
         #print "prefix" + branchPrefix
         changes = self.p4.p4ChangesForPaths([branchPrefix], commitRange)
@@ -1734,13 +1748,12 @@ class P4Sync(Command):
                             if parent == branch:
                                 parent = ""
                             else:
-                                fullBranch = self.projectName + branch
-                                if fullBranch not in self.p4BranchesInGit:
+                                if branch not in self.p4BranchesInGit:
                                     if not self.silent:
-                                        print("\n    Importing new branch %s" % fullBranch);
+                                        print("\n    Importing new branch %s" % branch);
                                     if self.importNewBranch(branch, change - 1):
                                         parent = ""
-                                        self.p4BranchesInGit.append(fullBranch)
+                                        self.p4BranchesInGit.append(branch)
                                     if not self.silent:
                                         print("\n    Resuming with change %s" % change);
 
