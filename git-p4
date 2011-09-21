@@ -1769,7 +1769,12 @@ class P4Sync(Command):
                             gitParent = self.initialParents[gitBranch]
                             del self.initialParents[gitBranch]
 
-                        self.commit(description, filesForCommit, gitBranch, [branch + "/"], gitParent)
+                        if gitBranchExists("refs/notes/git-p4"):
+                            noteParent = "refs/notes/git-p4^0"
+                        else:
+                            noteParent = ""
+                        
+                        self.commit(description, filesForCommit, gitBranch, [branch + "/"], gitParent, noteParent)
                 else:
                     files = self.extractFilesFromCommit(description)
                     if (cnt == 1 and restartImport):
