@@ -1702,11 +1702,10 @@ class P4Sync(Command):
         firstChange = changes[0]
         #print "first change in branch: %s" % firstChange
         sourceBranch = self.knownBranches[branch]
-        sourceDepotPath = self.depotPaths[0] + sourceBranch
         sourceRef = self.gitRefForBranch(sourceBranch)
         #print "source " + sourceBranch
 
-        branchParentChange = int(self.p4.p4Cmd("changes -m 1 %s...@1,%s" % (sourceDepotPath, firstChange))["change"])
+        branchParentChange = int(self.p4.p4Cmd("changes -m 1 %s...@1,%s" % (sourceBranch, firstChange))["change"])
         #print "branch parent: %s" % branchParentChange
         gitParent = self.gitCommitByP4Change(sourceRef, branchParentChange)
         if len(gitParent) > 0:
@@ -1867,19 +1866,16 @@ class P4Sync(Command):
                 p4Change = max(p4Change, change)
 
                 depotPaths = sorted(settings['depot-paths'])
-                if self.previousDepotPaths == []:
-                    self.previousDepotPaths = depotPaths
+                loadedFullPath = depotPaths[0]
+                
+                if branch != "master":
+                    pName = branch[0:branch.index("/")]
+                    dPath = loadedFullPath[0:loadedFullPath.index(pName)+len(pName)+1]
                 else:
-                    paths = []
-                    for (prev, cur) in zip(self.previousDepotPaths, depotPaths):
-                        for i in range(0, min(len(cur), len(prev))):
-                            if cur[i] <> prev[i]:
-                                i = i - 1
-                                break
-
-                        paths.append (cur[:i + 1])
-
-                    self.previousDepotPaths = paths
+                    dPath = loadedFullPath
+                
+                if dPath not in self.previousDepotPaths:
+                    self.previousDepotPaths.append(dPath)
 
         if p4Change > 0:
             self.depotPaths = sorted(self.previousDepotPaths)
@@ -1929,9 +1925,13 @@ class P4Sync(Command):
             print "initial parents: %s" % self.initialParents
         for b in self.p4BranchesInGit:
             if b != "master":
-
-                ## FIXME
-                b = b[len(self.projectName):]
+                
+                for p4Branch in self.knownBranches:
+                    if p4Branch.replace(" ","_").count(b) > 0:
+                        if p4Branch not in self.createdBranches:
+                            b = p4Branch
+                            break
+                        
             self.createdBranches.add(b)
 
 
