@@ -1841,21 +1841,24 @@ class P4Sync(Command):
         # length. If the integer is negative, the folder name maps to its
         # negative length, and was explicitly excluded.
         specList = self.p4.p4CmdList( "client -o" )
+        specExpression = re.compile('(?P<sign>-?)"?(?P<firstpath>//.+?)(?:\.\.\.)?"? +"?//')
         temp = {}
         for entry in specList:
             for k,v in entry.iteritems():
                 if k.startswith("View"):
-                    if v.startswith('"'):
-                        start = 1
+                    
+                    specMatch = specExpression.match(v)
+                    
+                    if not specMatch:
+                        continue
+                    
+                    firstPath = specMatch.group("firstpath")
+                    sign = specMatch.group("sign")
+                    
+                    if sign == "-":
+                        temp[firstPath] = -len(firstPath)
                     else:
-                        start = 0
-                    index = v.find("...")
-                    v = v[start:index]
-                    if v.startswith("-"):
-                        v = v[1:]
-                        temp[v] = -len(v)
-                    else:
-                        temp[v] = len(v)
+                        temp[firstPath] = len(firstPath)
         self.clientSpecDirs = temp.items()
         self.clientSpecDirs.sort( lambda x, y: abs( y[1] ) - abs( x[1] ) )
 
