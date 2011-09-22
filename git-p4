@@ -1155,7 +1155,9 @@ class P4Sync(Command):
                 optparse.make_option("--keep-path", dest="keepRepoPath", action='store_true',
                                      help="Keep entire BRANCH/DIR/SUBDIR prefix during import"),
                 optparse.make_option("--use-client-spec", dest="useClientSpec", action='store_true',
-                                     help="Only sync files that are included in the Perforce Client Spec")
+                                     help="Only sync files that are included in the Perforce Client Spec"),
+                optparse.make_option("--use-full-paths", dest="useFullPaths", action='store_true',
+                                     help="Use the full repository path as the Git branch name")
         ]
         self.description = """Imports from Perforce into a git repository.\n
     example:
@@ -1186,6 +1188,7 @@ class P4Sync(Command):
         self.p4BranchesInGit = []
         self.cloneExclude = []
         self.useClientSpec = False
+        self.useFullPaths = False
         self.clientSpecDirs = []
         self.markCounter = 1
         self.p4FileReader = P4FileReader
@@ -1650,11 +1653,14 @@ class P4Sync(Command):
         if len(branch) <= 0:
             return branch
         
-        for depotPath in self.depotPaths:
-            if branch.startswith(depotPath):
-                return self.refPrefix + self.guessProjectName(branch) + branch[len(depotPath):len(branch)].replace(" ","_")
-        
-        return self.refPrefix + self.guessProjectName(branch) + branch[len(self.depotPaths[0]):len(branch)].replace(" ","_")
+        if self.useFullPaths:
+            return self.refPrefix + branch[2:].replace(" ","_")
+        else:    
+            for depotPath in self.depotPaths:
+                if branch.startswith(depotPath):
+                    return self.refPrefix + self.guessProjectName(branch) + branch[len(depotPath):].replace(" ","_")
+            
+            return self.refPrefix + self.guessProjectName(branch) + branch[len(self.depotPaths[0]):].replace(" ","_")
 
     def gitCommitByP4Change(self, ref, change):
         if self.verbose:
