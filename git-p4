@@ -310,8 +310,8 @@ def read_pipe_lines(c):
     ## todo: check return status
     pipe = os.popen(c, 'rb')
     val = pipe.readlines()
-    if pipe.close():
-        die('Command failed: %s' % c)
+#    if pipe.close():
+#        die('Command failed: %s' % c)
 
     return val
 
@@ -454,6 +454,11 @@ _gitConfig = {}
 def gitConfig(key):
     if not _gitConfig.has_key(key):
         _gitConfig[key] = read_pipe("git config %s" % key, ignore_error=True).strip()
+    return _gitConfig[key]
+
+def gitConfigList(key):
+    if not _gitConfig.has_key(key):
+        _gitConfig[key] = read_pipe("git config --get-all %s" % key, ignore_error=True).strip().replace("\r\n","\n").split("\n")
     return _gitConfig[key]
 
 def p4BranchesInGit(branchesAreInRemotes = True):
@@ -1619,7 +1624,25 @@ class P4Sync(Command):
 
                     if source not in self.knownBranches:
                         lostAndFoundBranches.add(source)
+                        
+        # Perforce does not strictly require branches to be defined, so we also
+        # check git config for a branch list.
+        #
+        # Example of branch definition in git config file:
+        # [git-p4]
+        # branchList=main:branchA
+        # branchList=main:branchB
+        # branchList=branchA:branchC
+        configBranches = gitConfigList("git-p4.branchList")
+        for branch in configBranches:
+            if branch:
+                (source, destination) = branch.split(":")
+                self.knownBranches[destination] = source
 
+                lostAndFoundBranches.discard(destination)
+
+                if source not in self.knownBranches:
+                    lostAndFoundBranches.add(source)
 
         for branch in lostAndFoundBranches:
             self.knownBranches[branch] = branch
