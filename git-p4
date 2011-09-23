@@ -171,6 +171,11 @@ class P4Helper:
         try:
             while True:
                 entry = marshal.load(p4.stdout)
+                
+                if entry['code'] == 'error':
+                    sys.stderr.write("p4 returned an error: %s\n" % entry['data'])
+                    sys.exit(1)
+                
                 result.append(entry)
         except EOFError:
             pass
@@ -178,7 +183,7 @@ class P4Helper:
         if exitCode != 0:
             entry = {}
             entry["p4ExitCode"] = exitCode
-            result.append(entry)
+            result.append(entry)        
 
         return result
 
@@ -1188,7 +1193,7 @@ class P4Sync(Command):
         self.p4BranchesInGit = []
         self.cloneExclude = []
         self.useClientSpec = False
-        self.useFullPaths = False
+        self.useFullPaths = gitConfig("git-p4.useFullPaths") == "true"
         self.clientSpecDirs = []
         self.markCounter = 1
         self.p4FileReader = P4FileReader
