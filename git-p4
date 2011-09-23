@@ -1886,15 +1886,9 @@ class P4Sync(Command):
 
                 depotPaths = sorted(settings['depot-paths'])
                 loadedFullPath = depotPaths[0]
-                
-                if branch != "master":
-                    pName = branch[0:branch.index("/")]
-                    dPath = loadedFullPath[0:loadedFullPath.index(pName)+len(pName)+1]
-                else:
-                    dPath = loadedFullPath
-                
-                if dPath not in self.previousDepotPaths:
-                    self.previousDepotPaths.append(dPath)
+                                
+                if loadedFullPath not in self.previousDepotPaths:
+                    self.previousDepotPaths.append(loadedFullPath)
 
         if p4Change > 0:
             self.depotPaths = sorted(self.previousDepotPaths)
@@ -2007,7 +2001,7 @@ class P4Sync(Command):
 
         if len(args) == 0 and self.depotPaths:
             if not self.silent:
-                print "Depot paths: %s" % ' '.join(self.depotPaths)
+                print "Depot paths: \n%s" % '\n'.join(self.depotPaths)
         else:
             if self.depotPaths and self.depotPaths != args:
                 print ("previous import used depot path %s and now %s was specified. "
