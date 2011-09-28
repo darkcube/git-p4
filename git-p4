@@ -310,8 +310,8 @@ def read_pipe_lines(c):
     ## todo: check return status
     pipe = os.popen(c, 'rb')
     val = pipe.readlines()
-#    if pipe.close():
-#        die('Command failed: %s' % c)
+    if pipe.close():
+        die('Command failed: %s' % c)
 
     return val
 
@@ -392,7 +392,7 @@ class P4CmdReader:
             raise StopIteration
 
 def currentGitBranch():
-    return read_pipe("git name-rev HEAD").split(" ")[1].strip()
+    return read_pipe("git symbolic-ref -q HEAD")[len('refs/heads/'):].strip()
 
 def isValidGitDir(path):
     if (os.path.exists(path + "/HEAD")
@@ -496,7 +496,7 @@ def findUpstreamBranchPoint(head = "HEAD"):
             paths = ",".join(settings["depot-paths"])
             if branchByDepotPath.has_key(paths):
                 print "Warning: depot-path %s already covered by git branch %s" % (paths, branch)
-            branchByDepotPath[paths] = "remotes/p4/" + branch
+            branchByDepotPath[paths] = "p4/" + branch
 
     settings = extractLastSettingsFromNotes(head)
     if settings.has_key("depot-paths"):
@@ -1139,7 +1139,7 @@ class P4Submit(Command):
 
         self.applyCommits()
         
-        system("git update-ref %s%s %s" % (getRefsPrefix(self.importIntoRemotes), self.master, self.master))
+        system("git update-ref /refs/remotes/%s %s" % (self.origin, self.master))
 
         if len(self.commits) == 0:
             print "All changes applied!"
@@ -1683,12 +1683,10 @@ class P4Sync(Command):
         
         if self.useFullPaths:
             return self.refPrefix + branch[2:].replace(" ","_")
-        else:    
-            for depotPath in self.depotPaths:
-                if branch.startswith(depotPath):
-                    return self.refPrefix + self.guessProjectName(branch) + branch[len(depotPath):].replace(" ","_")
-            
-            return self.refPrefix + self.guessProjectName(branch) + branch[len(self.depotPaths[0]):].replace(" ","_")
+        else:
+            regex = re.compile('//.+/(?P<branch_name>.+/.+)')
+            branchMatch = regex.match(branch)
+            return self.refPrefix + branchMatch.group("branch_name").replace(" ","_")
 
     def gitCommitByP4Change(self, ref, change):
         if self.verbose:
