@@ -138,7 +138,7 @@ class P4Helper:
     def getP4OpenedType(self, file):
         # Returns the perforce file type for the given file.
 
-        result = self.p4_read_pipe('opened "%s"' % file)
+        result = self.p4_read_pipe("opened %s" % escapeString(file))
         match = re.match(".*\((.+)\)\r?$", result)
         if match:
             return match.group(1)
@@ -254,8 +254,8 @@ class P4Helper:
         return dest
 
 def escapeString(str):
-	# Escape paren and backslash characters in string
-	return re.sub("\(", "\\\(", re.sub("\)", "\\\)", re.sub(r"\\", r"\\\\", str)))
+	# Escape paren, space and backslash characters in string
+	return re.sub(" ", "\\ ", re.sub("\(", "\\\(", re.sub("\)", "\\\)", re.sub(r"\\", r"\\\\", str))))
 
 def getRefsPrefix(importIntoRemotes):
     if importIntoRemotes:
@@ -1116,6 +1116,9 @@ class P4Submit(Command):
 
         self.clientPath = self.p4.p4Where(self.depotPath)
 
+        if self.isWindows:
+        	self.clientPath = self.clientPath.replace("\\", "/")
+
         if len(self.clientPath) == 0:
             print "Error: Cannot locate perforce checkout of %s in client view" % self.depotPath
             sys.exit(128)
@@ -1168,7 +1171,9 @@ class P4Sync(Command):
                 optparse.make_option("--use-client-spec", dest="useClientSpec", action='store_true',
                                      help="Only sync files that are included in the Perforce Client Spec"),
                 optparse.make_option("--use-full-paths", dest="useFullPaths", action='store_true',
-                                     help="Use the full repository path as the Git branch name")
+                                     help="Use the full repository path as the Git branch name"),
+                optparse.make_option("--file-dump", dest="fileDump", action='store_true',
+                                     help="Save file git-p4-dump instead of passing data through to git fast-import. Useful for large repositories.")
         ]
         self.description = """Imports from Perforce into a git repository.\n
     example:
@@ -1200,6 +1205,7 @@ class P4Sync(Command):
         self.cloneExclude = []
         self.useClientSpec = False
         self.useFullPaths = gitConfig("git-p4.useFullPaths") == "true"
+        self.fileDump = False
         self.clientSpecDirs = []
         self.markCounter = 1
         self.p4FileReader = P4FileReader
@@ -1589,7 +1595,7 @@ class P4Sync(Command):
         lostAndFoundBranches = set()
 
         for info in self.p4.p4CmdList("branches"):
-            details = self.p4.p4Cmd("branch -o %s" % info["branch"])
+            details = self.p4.p4Cmd("branch -o \"%s\"" % info["branch"])
             viewIdx = 0
             while details.has_key("View%s" % viewIdx):
                 paths = shlex.split(details["View%s" % viewIdx])
@@ -2047,7 +2053,10 @@ class P4Sync(Command):
         
         self.tz = "%+03d%02d" % (- time.timezone / 3600, ((- time.timezone % 3600) / 60))
 
-        self.gitStream = StringIO.StringIO()
+        if self.fileDump:
+          self.gitStream = open("git-p4-dump", "wb")
+        else:
+          self.gitStream = cStringIO.StringIO()
 
         if revision:
             self.importHeadRevision(revision)
@@ -2099,19 +2108,23 @@ class P4Sync(Command):
                         sys.stdout.write("%s " % b)
                     sys.stdout.write("\n")
 
-        if self.debug:
-            tmpfile = "%s/p4import" % tempfile.gettempdir()
-            print "Input for 'git fast-import' written to %s\n" % tmpfile
-            FILE = open(tmpfile, "w")
-            FILE.write(self.gitStream.getvalue())
-            FILE.close()
+        if self.fileDump:
+          print "Finished processing. Data may be manually utilized now (e.g. sent to git fast-import)"
+        else:
+          if self.debug:
+              tmpfile = "%s/p4import" % tempfile.gettempdir()
+              FILE = open(tmpfile, "w")
+              FILE.write(self.gitStream.getvalue())
+              FILE.close()
+              print "Input for 'git fast-import' written to %s\n" % tmpfile
 
-        importProcess = subprocess.Popen(["git", "fast-import"],
-                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                         stderr=subprocess.PIPE);
-        self.gitOutput, self.gitError = importProcess.communicate(self.gitStream.getvalue())
-        if importProcess.returncode != 0:
-            die("fast-import failed: %s" % self.gitError)
+          importProcess = subprocess.Popen(["git", "fast-import"],
+                                           stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE);
+          self.gitOutput, self.gitError = importProcess.communicate(self.gitStream.getvalue())
+
+          if importProcess.returncode != 0:
+              die("fast-import failed: %s" % self.gitError)
 
         return True
 
