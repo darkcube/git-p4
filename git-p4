@@ -880,10 +880,10 @@ class P4Submit(Command):
         return template
 
     def applyPatch(self, id):
-        diffcmd = 'git format-patch -k -b --stdout "%s^".."%s"' % (id, id)
+        diffcmd = 'git format-patch -k --stdout "%s^".."%s"' % (id, id)
         patchcmd = diffcmd + " | git apply "
-        tryPatchCmd = patchcmd + "--check --ignore-whitespace --ignore-space-change -"
-        applyPatchCmd = patchcmd + "--check --apply --ignore-whitespace --ignore-space-change -"
+        tryPatchCmd = patchcmd + "--check -"
+        applyPatchCmd = patchcmd + "--check --apply -"
 
         if os.system(tryPatchCmd) != 0:
             print "Unfortunately applying the change failed!"
